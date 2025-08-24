@@ -1,4 +1,25 @@
 $ErrorActionPreference = "Stop"
+$ConfirmPreference = "None"
+
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+    exit
+}
+
+if (-not (Get-Module -ListAvailable -Name NtObjectManager)) {
+    Set-ExecutionPolicy Bypass -Force
+    Install-Module -Name NtObjectManager -Force
+}
+
+$parentName = (Get-NtProcess -ProcessId $PID).Parent.Name
+if ($parentName -ne "TrustedInstaller.exe") {
+    Start-Service -Name TrustedInstaller
+    $parent = Get-NtProcess -ServiceName TrustedInstaller
+    New-Win32Process "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -CreationFlags NewConsole -ParentProcess $parent | Out-Null
+    exit
+}
+
+
 function Stop-Explorer {
     Write-Host "Stopping explorer.exe..." -ForegroundColor Yellow
     Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
@@ -62,14 +83,13 @@ function Clear-USNJournal {
         Write-Host "Failed to delete USN Journal: $_" -ForegroundColor Red
     }
 }
+
 function Main {
-    if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltinRole] "Administrator")) {
-        Write-Warning "Please run this script as Administrator!"
-        exit
-    }
     Stop-Explorer
     Stop-EventLog
+
     Write-Host "`n--- Clearing Artifacts ---`n" -ForegroundColor Cyan
+
     Clear-RegistryKey "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\ComDlg32"
     Clear-RegistryKey "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\RecentDocs"
     Clear-RegistryKey "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\UserAssist"
@@ -78,6 +98,7 @@ function Main {
     Clear-RegistryKey "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\AppSwitch"
     Clear-RegistryKey "HKCU:\Software\Microsoft\Windows\Shell\MUICache"
     Clear-RegistryKey "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\AppCompatCache"
+
     Clear-Prefetch
     Clear-EventLogs
     Clear-RecentFiles
@@ -105,4 +126,5 @@ function Main {
     Write-Host "`n✔️ All selected traces cleared." -ForegroundColor Green
     Read-Host "`n[Press ENTER to exit]"
 }
+
 Main
