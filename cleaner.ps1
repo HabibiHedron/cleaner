@@ -123,8 +123,7 @@ function Main {
     Start-EventLog
     Start-Explorer
 
-    Write-Host "`n✔️ All selected traces cleared." -ForegroundColor Green
+    Write-Host "`n All selected traces cleared." -ForegroundColor Green
     Read-Host "`n[Press ENTER to exit]"
 }
 
-Main
